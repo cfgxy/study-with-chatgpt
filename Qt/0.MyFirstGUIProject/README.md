@@ -15,7 +15,7 @@
 
 https://shareg.pt/OegN52O
 
-# 相关链接
+## 相关链接
 
 - [Qt：windows下Qt安装教程](https://zhuanlan.zhihu.com/p/634273644)
 - [用静态链接qt库的方式使用qt（上）](https://systemisbusy.info/blog/2019/09/28/%E7%94%A8%E9%9D%99%E6%80%81%E9%93%BE%E6%8E%A5qt%E5%BA%93%E7%9A%84%E6%96%B9%E5%BC%8F%E4%BD%BF%E7%94%A8qt%EF%BC%88%E4%B8%8A%EF%BC%89/)
