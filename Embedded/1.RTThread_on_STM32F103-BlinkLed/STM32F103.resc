@@ -1,0 +1,19 @@
+using sysbus
+
+mach create
+machine LoadPlatformDescription @STM32F103.repl
+
+$bin?=@cmake-build-debug-msys2-mingw64/nano.elf
+
+showAnalyzer usart1
+
+logLevel -1 sysbus.gpioPortC.UserLED
+emulation SetGlobalQuantum "0.000005"
+
+machine StartGdbServer 1234
+macro reset
+"""
+    sysbus LoadELF $bin
+"""
+
+runMacro $reset
