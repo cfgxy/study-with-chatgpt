@@ -5,10 +5,10 @@ machine LoadPlatformDescription @STM32F103.repl
 
 $bin?=@cmake-build-debug-msys2-mingw64/nano.elf
 
-showAnalyzer usart1
 
-logLevel -1 sysbus.gpioPortC.UserLED
+showAnalyzer usart2
+logLevel -1 sysbus.gpioPortA.UserLED
 emulation SetGlobalQuantum "0.000005"
 
 sysbus LoadELF $bin
-machine StartGdbServer 1234 True
+machine StartGdbServer 1234 true

@@ -1,0 +1,9 @@
+using "platforms/cpus/stm32f103.repl"
+
+button: Miscellaneous.Button @ gpioPortC 13 { IRQ -> gpioPortC@13 }
+
+UserLED: Miscellaneous.LED @ gpioPortA
+
+gpioPortA:
+    5 -> UserLED@0
+
