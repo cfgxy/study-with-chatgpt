@@ -192,7 +192,7 @@ static void blink_led(void *args)
 
 static void button_holding(void *args)
 {
-  time_t start = gButtonHolding;
+  rt_uint64_t start = gButtonHolding;
 
   rt_thread_delay(500);
   if (gButtonHolding == 0) {
@@ -204,9 +204,15 @@ static void button_holding(void *args)
       rt_kprintf("Button released!\n");
       break;
     }
+
+    if (gButtonHolding != start) {
+      rt_kprintf("Button released!\n");
+      start = gButtonHolding;
+    }
+
     time_t now = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
     rt_kprintf("Button hold %dms!\n", (int)(now - start));
-    rt_thread_delay(100);
+    rt_thread_delay(2000);
   }
 }
 
@@ -219,16 +225,22 @@ static void key_cb(void *args)
   // 处理长按事件
   int pinValue = rt_pin_read(BUTTON_PIN);
   if (pinValue == PIN_HIGH) {
-    rt_thread_t tid = rt_thread_create(
-      "button_holding",
-      button_holding,
-      RT_NULL,
-      RT_MAIN_THREAD_STACK_SIZE,
-      10,
-      20
-    );
     gButtonHolding = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
-    rt_thread_startup(tid);
+
+    rt_thread_t tid = RT_NULL;
+    tid = rt_thread_find("button_holding");
+
+    if (tid == RT_NULL) {
+      tid = rt_thread_create(
+        "button_holding",
+        button_holding,
+        RT_NULL,
+        RT_MAIN_THREAD_STACK_SIZE,
+        10,
+        20
+      );
+      rt_thread_startup(tid);
+    }
   } else {
     // 闪灯开关
     gLedBlinking = !gLedBlinking;
