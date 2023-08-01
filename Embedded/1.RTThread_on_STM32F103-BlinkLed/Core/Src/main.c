@@ -20,8 +20,8 @@
 #include "main.h"
 #include "rtdbg.h"
 #include <rtthread.h>
+#include "time.h"
 #include "pin.h"
-#include "button.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,12 +48,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+rt_thread_t thread_blink_led = RT_NULL;
+rt_uint8_t gLedBlinking = 0;
+rt_uint64_t gButtonHolding = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-static void key_cb(struct my_button *button);
+static void key_cb(void *args);
+static void blink_led(void *args);
+static void button_holding(void *args);
 
 /* USER CODE END PFP */
 
@@ -89,15 +93,16 @@ int main(void)
   /* Initialize all configured peripherals */
   /* USER CODE BEGIN 2 */
   /* user app entry */
-  /** 注册按钮回调 */
-  static struct my_button key = {0};
-  key.press_logic_level = PIN_HIGH;
-  key.hold_cyc_period = 100;
-  key.cb = (my_button_callback)key_cb;
-  key.pin = BUTTON_PIN;
-  my_button_register(&key);
-
   LOG_D("Hello RT-Thread!");
+  rt_thread_t tid = rt_thread_create(
+    "blink_led",
+    blink_led,
+    RT_NULL,
+    RT_MAIN_THREAD_STACK_SIZE,
+    10,
+    20
+  );
+  rt_thread_startup(tid);
 
   /* USER CODE END 2 */
 
@@ -162,6 +167,8 @@ static int uart_gpio_port_C(void)
 {
   // LED 针脚初始化
   rt_pin_mode(LED0_PIN, PIN_MODE_OUTPUT);
+  rt_pin_attach_irq(BUTTON_PIN, PIN_IRQ_MODE_RISING_FALLING, key_cb, RT_NULL);
+  rt_pin_irq_enable(BUTTON_PIN, PIN_IRQ_ENABLE);
   return 0;
 }
 INIT_BOARD_EXPORT(uart_gpio_port_C);
@@ -169,40 +176,70 @@ INIT_BOARD_EXPORT(uart_gpio_port_C);
 /**
  * 闪灯逻辑
  */
-static void blink_led()
+static void blink_led(void *args)
 {
-  rt_pin_write(LED0_PIN, PIN_HIGH);
+  while (1) {
+    if (gLedBlinking) {
+      rt_pin_write(LED0_PIN, PIN_HIGH);
+      rt_thread_delay(500);
+      rt_pin_write(LED0_PIN, PIN_LOW);
+      rt_thread_delay(500);
+    } else {
+      rt_thread_delay(100);
+    }
+  }
+}
+
+static void button_holding(void *args)
+{
+  time_t start = gButtonHolding;
+
   rt_thread_delay(500);
-  rt_pin_write(LED0_PIN, PIN_LOW);
+  if (gButtonHolding == 0) {
+    return;
+  }
+
+  while (1) {
+    if (gButtonHolding == 0) {
+      rt_kprintf("Button released!\n");
+      break;
+    }
+    time_t now = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
+    rt_kprintf("Button hold %dms!\n", (int)(now - start));
+    rt_thread_delay(100);
+  }
 }
 
 /**
  * 按钮事件回调
  * @param button
  */
-static void key_cb(struct my_button *button)
+static void key_cb(void *args)
 {
-  switch (button->event)
-  {
-    case BUTTON_EVENT_CLICK_UP:
-      rt_kprintf("This is click up callback!\n");
+  // 处理长按事件
+  int pinValue = rt_pin_read(BUTTON_PIN);
+  if (pinValue == PIN_HIGH) {
+    rt_thread_t tid = rt_thread_create(
+      "button_holding",
+      button_holding,
+      RT_NULL,
+      RT_MAIN_THREAD_STACK_SIZE,
+      10,
+      20
+    );
+    gButtonHolding = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
+    rt_thread_startup(tid);
+  } else {
+    // 闪灯开关
+    gLedBlinking = !gLedBlinking;
+    if (gLedBlinking) {
+      rt_kprintf("Start Led Blinking!\n");
+    } else {
+      rt_kprintf("Stop Led Blinking!\n");
+    }
 
-      rt_thread_t tid;
-      tid = rt_thread_find("blink_led");
-      if (tid == RT_NULL) {
-        tid = rt_thread_create("blink_led", blink_led, RT_NULL,
-                               RT_MAIN_THREAD_STACK_SIZE, 10, 20);
-        rt_thread_startup(tid);
-      } else {
-        LOG_D("last blink not finished.");
-      }
-
-      break;
-    case BUTTON_EVENT_HOLD_CYC:
-      rt_kprintf("This is hold cyc callback!\n");
-      break;
-    default:
-      ;
+    // 停止长按监测
+    gButtonHolding = 0;
   }
 }
 

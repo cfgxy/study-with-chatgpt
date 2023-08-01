@@ -465,5 +465,6 @@ int rt_hw_pin_init(void)
 
     return RT_EOK;
 }
+INIT_BOARD_EXPORT(rt_hw_pin_init);
 
 #endif /* RT_USING_PIN */
