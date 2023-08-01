@@ -3,7 +3,8 @@ using sysbus
 mach create
 machine LoadPlatformDescription @STM32F103.repl
 
-$bin?=@cmake-build-debug-msys2-mingw64/nano.elf
+#$bin?=@cmake-build-debug-msys2-mingw64/nano.elf
+$bin?=@cmake-build-minsizerel-msys2-mingw64/nano.elf
 
 
 showAnalyzer usart2
