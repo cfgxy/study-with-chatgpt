@@ -18,13 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
 #include "rtdbg.h"
 #include <rtthread.h>
 #include "time.h"
 #include "pin.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
 
@@ -48,12 +48,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-rt_thread_t thread_blink_led = RT_NULL;
 rt_uint8_t gLedBlinking = 0;
-rt_uint64_t gButtonHolding = 0;
+rt_uint64_t gButtonHoldingStartAt = 0;
+rt_sem_t gButtonHoldingProcessSem = RT_NULL;
+rt_sem_t gLedBlinkingProcessSem = RT_NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void key_cb(void *args);
 static void blink_led(void *args);
@@ -84,8 +86,6 @@ int main(void)
 
   /* USER CODE END Init */
 
-  /* Configure the system clock */
-
   /* USER CODE BEGIN SysInit */
 
   /* USER CODE END SysInit */
@@ -94,15 +94,29 @@ int main(void)
   /* USER CODE BEGIN 2 */
   /* user app entry */
   LOG_D("Hello RT-Thread!");
-  rt_thread_t tid = rt_thread_create(
-    "blink_led",
+
+  gButtonHoldingProcessSem = rt_sem_create("button.holding", 0, RT_IPC_FLAG_FIFO);
+  gLedBlinkingProcessSem = rt_sem_create("led", 0, RT_IPC_FLAG_FIFO);
+
+  rt_thread_t tid0 = rt_thread_create(
+    "led_blinking",
     blink_led,
     RT_NULL,
     RT_MAIN_THREAD_STACK_SIZE,
     10,
     20
   );
-  rt_thread_startup(tid);
+  rt_thread_startup(tid0);
+
+  rt_thread_t tid1 = rt_thread_create(
+    "button_holding",
+    button_holding,
+    RT_NULL,
+    RT_MAIN_THREAD_STACK_SIZE,
+    10,
+    20
+  );
+  rt_thread_startup(tid1);
 
   /* USER CODE END 2 */
 
@@ -119,21 +133,18 @@ int main(void)
   /* USER CODE END 3 */
 }
 
-/* USER CODE BEGIN 4 */
-
-
 /**
- * 这个函数在 rt_hw_board_init() 阶段被自动调用
- * @brief 系统时钟设置
- * @retval None
- */
-__USED void SystemClock_Config(void)
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
 {
-
-  /**
-   * 配置时钟源
-   */
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -143,10 +154,10 @@ __USED void SystemClock_Config(void)
     Error_Handler();
   }
 
-  /** 配置时钟分频和输出 */
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                                |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -157,6 +168,8 @@ __USED void SystemClock_Config(void)
     Error_Handler();
   }
 }
+
+/* USER CODE BEGIN 4 */
 
 /**
  * 这个函数在 rt_components_board_init() 阶段被自动调用
@@ -185,34 +198,53 @@ static void blink_led(void *args)
       rt_pin_write(LED0_PIN, PIN_LOW);
       rt_thread_delay(500);
     } else {
-      rt_thread_delay(100);
+      rt_sem_take(gLedBlinkingProcessSem, RT_WAITING_FOREVER);
+
+      rt_base_t bk = rt_hw_interrupt_disable();
+      gLedBlinking = 1;
+      rt_hw_interrupt_enable(bk);
     }
   }
 }
 
+static void button_release(void *args)
+{
+  rt_kprintf("Button released!\n");
+}
+
+static void button_keep_holding(rt_uint64_t start)
+{
+  time_t now = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
+  rt_kprintf("Button hold %dms!\n", (int)(now - start));
+}
+
 static void button_holding(void *args)
 {
-  rt_uint64_t start = gButtonHolding;
-
-  rt_thread_delay(500);
-  if (gButtonHolding == 0) {
-    return;
-  }
-
+  rt_uint64_t start;
   while (1) {
-    if (gButtonHolding == 0) {
-      rt_kprintf("Button released!\n");
-      break;
+    rt_sem_take(gButtonHoldingProcessSem, RT_WAITING_FOREVER);
+
+    start = gButtonHoldingStartAt;
+
+    rt_thread_delay(500);
+    if (gButtonHoldingStartAt == 0) {
+      continue;
     }
 
-    if (gButtonHolding != start) {
-      rt_kprintf("Button released!\n");
-      start = gButtonHolding;
-    }
+    while (1) {
+      if (gButtonHoldingStartAt == 0) {
+        button_release(RT_NULL);
+        break;
+      }
 
-    time_t now = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
-    rt_kprintf("Button hold %dms!\n", (int)(now - start));
-    rt_thread_delay(2000);
+      if (gButtonHoldingStartAt != start) {
+        button_release(RT_NULL);
+        break;
+      }
+
+      button_keep_holding(start);
+      rt_thread_delay(2000);
+    }
   }
 }
 
@@ -225,33 +257,20 @@ static void key_cb(void *args)
   // 处理长按事件
   int pinValue = rt_pin_read(BUTTON_PIN);
   if (pinValue == PIN_HIGH) {
-    gButtonHolding = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
-
-    rt_thread_t tid = RT_NULL;
-    tid = rt_thread_find("button_holding");
-
-    if (tid == RT_NULL) {
-      tid = rt_thread_create(
-        "button_holding",
-        button_holding,
-        RT_NULL,
-        RT_MAIN_THREAD_STACK_SIZE,
-        10,
-        20
-      );
-      rt_thread_startup(tid);
-    }
+    gButtonHoldingStartAt = rt_tick_get() * 1000 / RT_TICK_PER_SECOND;
+    rt_sem_release(gButtonHoldingProcessSem);
   } else {
     // 闪灯开关
-    gLedBlinking = !gLedBlinking;
-    if (gLedBlinking) {
+    if (!gLedBlinking) {
+      rt_sem_release(gLedBlinkingProcessSem);
       rt_kprintf("Start Led Blinking!\n");
     } else {
+      gLedBlinking = 0;
       rt_kprintf("Stop Led Blinking!\n");
     }
 
     // 停止长按监测
-    gButtonHolding = 0;
+    gButtonHoldingStartAt = 0;
   }
 }
 

@@ -36,11 +36,11 @@ add_compile_options(-ffunction-sections -fdata-sections -fno-common -fmessage-le
 # Enable assembler files preprocessing
 add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-x$<SEMICOLON>assembler-with-cpp>)
 
-include_directories(Core/Inc Drivers/STM32F1xx_HAL_Driver/Inc Drivers/RT-Thread/Inc Drivers/STM32F1xx_HAL_Driver/Inc/Legacy Drivers/CMSIS/Device/ST/STM32F1xx/Include Drivers/CMSIS/Include RT-Thread Middlewares/Third_Party/RealThread_RTOS/include/ Middlewares/Third_Party/RealThread_RTOS/bsp/_template/cubemx_config)
+include_directories(Core/Inc Drivers/STM32F1xx_HAL_Driver/Inc Drivers/RT-Thread/Inc Drivers/STM32F1xx_HAL_Driver/Inc/Legacy Drivers/CMSIS/Device/ST/STM32F1xx/Include Drivers/CMSIS/Include RT-Thread Middlewares/Third_Party/RealThread_RTOS/include/ Middlewares/Third_Party/RealThread_RTOS/components/finsh)
 
 add_definitions(-DDEBUG -DUSE_HAL_DRIVER -DSTM32F103xB)
 
-file(GLOB_RECURSE SOURCES "Core/*.*" "Middlewares/*.*" "Drivers/*.*")
+file(GLOB_RECURSE SOURCES "Core/*.*" "Drivers/*.*" "Middlewares/Third_Party/RealThread_RTOS/bsp/*.*" "Middlewares/Third_Party/RealThread_RTOS/libcpu/*.*" "Middlewares/Third_Party/RealThread_RTOS/src/*.*"  "Middlewares/Third_Party/RealThread_RTOS/components/device/*.*" "Middlewares/Third_Party/RealThread_RTOS/components/finsh/*.*")
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F103RBTX_FLASH.ld)
 
