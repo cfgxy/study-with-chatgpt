@@ -27,7 +27,7 @@ perform_full_backup() {
 # 函数：执行增量备份
 perform_incremental_backup() {
   # 检查是否存在当前周的全量备份目录
-  if [[ ! -d "$backup_base_dir/week.$current_date/base" ]]; then
+  if [[ ! -d "$backup_base_dir/current" ]]; then
     echo "Full backup for the current week is missing. Generating full backup instead of incremental backup."
 
     perform_full_backup
@@ -44,7 +44,7 @@ perform_incremental_backup() {
   mkdir -p "$backup_base_dir/week.$current_date/delta.$((last_delta + 1))"
 
   # 执行增量备份
-  xtrabackup --backup --target-dir="$backup_base_dir/week.$current_date/delta.$((last_delta + 1))" --incremental-basedir="$backup_base_dir/current.base"
+  xtrabackup --backup --target-dir="$backup_base_dir/week.$current_date/delta.$((last_delta + 1))" --incremental-basedir="$backup_base_dir/current"
 
   # 更新软链接为最新的增量备份（相对路径）
   ln -sfnr "$backup_base_dir/week.$current_date/delta.$((last_delta + 1))" "$backup_base_dir/current.delta"
